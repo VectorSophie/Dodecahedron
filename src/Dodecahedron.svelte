@@ -22,27 +22,46 @@
     new THREE.Vector3(-phi, -1/phi, 0), new THREE.Vector3(-phi, 1/phi, 0) // fixed V19
   ];
 
-  // 30 edges (vertex indices)
+  // 30 edges (vertex indices) - each vertex connects to exactly 3 edges
   const edgesIndices = [
-    [0,8],[0,12],[0,16],[1,8],[1,14],[1,17],
-    [2,10],[2,12],[2,18],[3,10],[3,14],[3,19],
-    [4,8],[4,13],[4,16],[5,9],[5,15],[5,17],
-    [6,11],[6,13],[6,18],[7,11],[7,15],[7,19],
-    [8,9],[10,11],[12,13],[14,15],[16,17],[18,19]
+    [8,9],[10,11],[12,13],[14,15],[16,17],[18,19],
+    [0,8],[0,12],[0,16],[1,9],[1,14],[1,16],
+    [2,10],[2,12],[2,17],[3,11],[3,14],[3,17],
+    [4,8],[4,13],[4,19],[5,9],[5,15],[5,19],
+    [6,10],[6,13],[6,18],[7,11],[7,15],[7,18]
   ];
 
-  // 12 faces (vertex indices)
+  // 12 pentagonal faces (vertex indices) - each face is a cycle of 5 vertices
   const facesVertices = [
-    [0,12,2,10,6], [0,16,1,17,4], [1,14,3,11,5],
-    [2,18,3,14,12], [4,17,5,15,13], [6,10,7,11,19],
-    [8,0,6,19,4], [9,1,4,13,5], [12,2,18,6,10],
-    [14,3,10,2,12], [15,5,11,3,14], [16,0,8,9,1]
+    [0,8,4,13,12], [0,16,1,9,8], [0,12,2,17,16],
+    [1,16,17,3,14], [1,14,15,5,9], [2,12,13,6,10],
+    [2,10,11,3,17], [4,8,9,5,19], [4,19,18,6,13],
+    [5,15,7,18,19], [6,18,7,11,10], [3,11,7,15,14]
   ];
 
-  // Name arrays
-  const vertexNames = Array.from({length:20}, (_,i)=>`V${i}`);
-  const edgeNames = Array.from({length:30}, (_,i)=>`E${i}`);
-  const faceNames = Array.from({length:12}, (_,i)=>`F${i+1}`);
+  // ========================================
+  // CUSTOMIZABLE LABELS - Edit these to rename elements
+  // ========================================
+
+  // Vertex labels (20 vertices total)
+  // Example: Change 'V0' to 'Top', 'V1' to 'North', etc.
+  let vertexNames = [
+    'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9',
+    'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18', 'V19'
+  ];
+
+  // Edge labels (30 edges total)
+  let edgeNames = [
+    'E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9',
+    'E10', 'E11', 'E12', 'E13', 'E14', 'E15', 'E16', 'E17', 'E18', 'E19',
+    'E20', 'E21', 'E22', 'E23', 'E24', 'E25', 'E26', 'E27', 'E28', 'E29'
+  ];
+
+  // Face labels (12 pentagonal faces)
+  let faceNames = [
+    'F1', 'F2', 'F3', 'F4', 'F5', 'F6',
+    'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+  ];
 
   const vertexLabels = writable([]);
   const edgeLabels = writable([]);
@@ -78,6 +97,47 @@
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.rotateSpeed = 0.7;
+
+    // Draw faces (semi-transparent)
+    const faceMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4444ff,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide
+    });
+
+    facesVertices.forEach(faceIndices => {
+      const shape = new THREE.Shape();
+      // Project the pentagon onto a plane for rendering
+      const faceVerts = faceIndices.map(idx => vertices[idx]);
+      const center = faceVerts.reduce((acc, v) => acc.add(v.clone()), new THREE.Vector3()).divideScalar(faceVerts.length);
+
+      // Create geometry from the face vertices
+      const geometry = new THREE.BufferGeometry();
+      const positions = [];
+      const indices = [];
+
+      // Add center point
+      positions.push(center.x, center.y, center.z);
+
+      // Add face vertices
+      faceVerts.forEach(v => {
+        positions.push(v.x, v.y, v.z);
+      });
+
+      // Create triangles from center to each edge
+      for (let i = 0; i < faceIndices.length; i++) {
+        const next = (i + 1) % faceIndices.length;
+        indices.push(0, i + 1, next + 1);
+      }
+
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geometry, faceMaterial);
+      scene.add(mesh);
+    });
 
     // Draw edges
     const edgeMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
