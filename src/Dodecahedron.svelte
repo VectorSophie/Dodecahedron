@@ -56,9 +56,9 @@
   // Face details (editable)
   let faceDetails = [
     'Details about Bias...', 'Details about The World...', 'Details about Order...',
-    'Details about Communication...', 'Details about God...', 'Details about Reason...',
-    'Details about Sin...', 'Details about Society...', 'Details about EGO...',
-    'Details about Time...', 'Details about Nature...', 'Details about Evolution...'
+    'Details about Sin...', 'Details about Nature...', 'Details about Reason...',
+    'Details about Communication...', 'Details about Society...', 'Details about EGO...',
+    'Details about Time...', 'Details about God...', 'Details about Evolution...'
   ];
 
   const vertexLabels = writable([]);
