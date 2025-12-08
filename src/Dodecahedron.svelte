@@ -49,15 +49,15 @@
 
   // Face labels (12 pentagonal faces)
   let faceNames = [
-    '1.Προκατάληψη(Bias)', '4.Κόσμος(The World)', '5.Τάξη(Order)', '10.Μετάδοσις(Communication)', '9.Θεός(God)', '6.Λόγος(Reason)',
-    '11.Ἁμαρτία(Sin)', '3. Κοινωνία(Society)', '2.Εγώ(EGO)', '8.Χρόνος(Time)', '7.Φύσις(Nature)', '12.Γένεσις(Evolution)'
+    '1.Προκατάληψη(Bias)', '4.Κόσμος(The World)', '5.Τάξη(Order)', '11.Ἁμαρτία(Sin)', '7.Φύσις(Nature)', '6.Λόγος(Reason)',
+    '10.Μετάδοσις(Communication)', '3. Κοινωνία(Society)', '2.Εγώ(EGO)', '8.Χρόνος(Time)', '9.Θεός(God)', '12.Γένεσις(Evolution)'
   ];
 
   // Face details (editable)
   let faceDetails = [
     'Details about Bias...', 'Details about The World...', 'Details about Order...',
     'Details about Communication...', 'Details about God...', 'Details about Reason...',
-    'Details about Sin...', 'Details about Societe...', 'Details about EGO...',
+    'Details about Sin...', 'Details about Society...', 'Details about EGO...',
     'Details about Time...', 'Details about Nature...', 'Details about Evolution...'
   ];
 
