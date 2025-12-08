@@ -49,8 +49,8 @@
 
   // Face labels (12 pentagonal faces)
   let faceNames = [
-    '1.Bias', '4.The World', '5.Order', '10.Communication', '9.God', '6.Reason',
-    '11.Sin', '3. Societe', '2.EGO', '8.Time', '7.Nature', '12.Evolution'
+    '1.Προκατάληψη(Bias)', '4.Κόσμος(The World)', '5.Τάξη(Order)', '10.Μετάδοσις(Communication)', '9.Θεός(God)', '6.Λόγος(Reason)',
+    '11.Ἁμαρτία(Sin)', '3. Κοινωνία(Society)', '2.Εγώ(EGO)', '8.Χρόνος(Time)', '7.Φύσις(Nature)', '12.Γένεσις(Evolution)'
   ];
 
   // Face details (editable)
@@ -69,6 +69,9 @@
   let selectedFace = null;
   let isDetailPanelOpen = false;
 
+  // Toggle labels visibility
+  let labelsVisible = true;
+
   function openFaceDetails(index) {
     selectedFace = index;
     isDetailPanelOpen = true;
@@ -82,6 +85,10 @@
   function saveDetails() {
     // Details are already bound and auto-saved
     closeDetailPanel();
+  }
+
+  function toggleLabels() {
+    labelsVisible = !labelsVisible;
   }
 
   // Geometric center F0
@@ -311,53 +318,59 @@
 <div class="dodeca-container">
   <canvas bind:this={canvas}></canvas>
 
+  <!-- Toggle Labels Button -->
+  <button class="toggle-labels-btn" on:click={toggleLabels}>
+    {labelsVisible ? 'Hide Labels' : 'Show Labels'}
+  </button>
+
   <!-- Vertex labels -->
-  {#each vertexNames as name, i}
-    <div class="label vertex-label" style="left: {($vertexLabels[i]?.x || 0)}px; top: {($vertexLabels[i]?.y || 0)}px;">
-      {name}
-    </div>
-  {/each}
+  {#if labelsVisible}
+    {#each vertexNames as name, i}
+      <div class="label vertex-label" style="left: {($vertexLabels[i]?.x || 0)}px; top: {($vertexLabels[i]?.y || 0)}px;">
+        {name}
+      </div>
+    {/each}
 
-  <!-- Edge labels -->
-  {#each edgeNames as name, i}
-    <div class="label edge-label" style="left: {($edgeLabels[i]?.x || 0)}px; top: {($edgeLabels[i]?.y || 0)}px;">
-      {name}
-    </div>
-  {/each}
+    <!-- Edge labels -->
+    {#each edgeNames as name, i}
+      <div class="label edge-label" style="left: {($edgeLabels[i]?.x || 0)}px; top: {($edgeLabels[i]?.y || 0)}px;">
+        {name}
+      </div>
+    {/each}
 
-  <!-- Face labels -->
-  {#each faceNames as name, i}
-    <div
-      class="label face-label"
-      style="left: {($faceLabels[i]?.x || 0)}px; top: {($faceLabels[i]?.y || 0)}px;"
-      on:click={() => openFaceDetails(i)}
-      role="button"
-      tabindex="0"
-    >
-      {name}
-    </div>
-  {/each}
+    <!-- Face labels -->
+    {#each faceNames as name, i}
+      <div
+        class="label face-label"
+        style="left: {($faceLabels[i]?.x || 0)}px; top: {($faceLabels[i]?.y || 0)}px;"
+        on:click={() => openFaceDetails(i)}
+        role="button"
+        tabindex="0"
+      >
+        {name}
+      </div>
+    {/each}
+  {/if}
 
-  <!-- Detail Panel -->
+  <!-- Detail Panel - Chat style on right side -->
   {#if isDetailPanelOpen && selectedFace !== null}
-    <div class="detail-panel-overlay" on:click={closeDetailPanel}>
-      <div class="detail-panel" on:click|stopPropagation>
-        <div class="detail-header">
-          <h2>{faceNames[selectedFace]}</h2>
-          <button class="close-btn" on:click={closeDetailPanel}>&times;</button>
-        </div>
-        <div class="detail-content">
-          <label for="face-details">Details:</label>
-          <textarea
-            id="face-details"
-            bind:value={faceDetails[selectedFace]}
-            rows="10"
-            placeholder="Enter details about this face..."
-          ></textarea>
-        </div>
-        <div class="detail-footer">
-          <button class="save-btn" on:click={saveDetails}>Save & Close</button>
-        </div>
+    <div class="detail-panel-overlay" on:click={closeDetailPanel}></div>
+    <div class="detail-panel">
+      <div class="detail-header">
+        <h2>{faceNames[selectedFace]}</h2>
+        <button class="close-btn" on:click={closeDetailPanel}>&times;</button>
+      </div>
+      <div class="detail-content">
+        <label for="face-details">Details:</label>
+        <textarea
+          id="face-details"
+          bind:value={faceDetails[selectedFace]}
+          rows="10"
+          placeholder="Enter details about this face..."
+        ></textarea>
+      </div>
+      <div class="detail-footer">
+        <button class="save-btn" on:click={saveDetails}>Save & Close</button>
       </div>
     </div>
   {/if}
@@ -448,33 +461,63 @@ canvas {
   transform: translate(-50%, -50%) scale(1.05);
 }
 
-/* Detail Panel */
+/* Toggle Labels Button */
+.toggle-labels-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+  background: rgba(15, 15, 35, 0.9);
+  border: 2px solid rgba(51, 102, 255, 0.6);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.toggle-labels-btn:hover {
+  background: rgba(51, 102, 255, 0.8);
+  border-color: rgba(51, 102, 255, 1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(51, 102, 255, 0.4);
+}
+
+.toggle-labels-btn:active {
+  transform: translateY(0);
+}
+
+/* Detail Panel - Chat style */
 .detail-panel-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(5px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  z-index: 999;
   animation: fadeIn 0.2s ease;
 }
 
 .detail-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 400px;
+  max-width: 90vw;
   background: linear-gradient(135deg, rgba(15, 15, 35, 0.98), rgba(20, 20, 45, 0.98));
-  border: 2px solid rgba(51, 102, 255, 0.8);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
+  border-left: 2px solid rgba(51, 102, 255, 0.8);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.8);
   display: flex;
   flex-direction: column;
-  animation: slideIn 0.3s ease;
+  z-index: 1000;
+  animation: slideInRight 0.3s ease;
 }
 
 .detail-header {
@@ -577,14 +620,14 @@ canvas {
   to { opacity: 1; }
 }
 
-@keyframes slideIn {
+@keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateY(-20px) scale(0.95);
+    transform: translateX(100%);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(0);
   }
 }
 </style>
