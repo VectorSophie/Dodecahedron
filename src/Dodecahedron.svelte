@@ -61,9 +61,17 @@
     'Details about Time...', 'Details about God...', 'Details about Evolution...'
   ];
 
+  // Center label details (editable)
+  let centerDetails = 'Details about subconscious...';
+
+  // External label details (editable)
+  let externalDetails = 'Details about all...';
+
   const vertexLabels = writable([]);
   const edgeLabels = writable([]);
   const faceLabels = writable([]);
+  const centerLabel = writable({ x: 0, y: 0 });
+  const externalLabel = writable({ x: 0, y: 0 });
 
   // Selected face for detail view
   let selectedFace = null;
@@ -74,6 +82,16 @@
 
   function openFaceDetails(index) {
     selectedFace = index;
+    isDetailPanelOpen = true;
+  }
+
+  function openCenterDetails() {
+    selectedFace = 'center';
+    isDetailPanelOpen = true;
+  }
+
+  function openExternalDetails() {
+    selectedFace = 'external';
     isDetailPanelOpen = true;
   }
 
@@ -302,6 +320,15 @@
         return toScreenPosition(worldPos, camera, renderer);
       }));
 
+      // Update center label (F0)
+      const centerWorldPos = F0.clone().applyMatrix4(dodecahedronGroup.matrixWorld);
+      centerLabel.set(toScreenPosition(centerWorldPos, camera, renderer));
+
+      // Update external label (positioned directly above F0)
+      const externalPos = new THREE.Vector3(0, 1, 2); 
+      const externalWorldPos = externalPos.applyMatrix4(dodecahedronGroup.matrixWorld);
+      externalLabel.set(toScreenPosition(externalWorldPos, camera, renderer));
+
       renderer.render(scene, camera);
     }
     animate();
@@ -350,6 +377,28 @@
         {name}
       </div>
     {/each}
+
+    <!-- Center label (F0) -->
+    <div
+      class="label face-label center-label"
+      style="left: {($centerLabel?.x || 0)}px; top: {($centerLabel?.y || 0)}px;"
+      on:click={openCenterDetails}
+      role="button"
+      tabindex="0"
+    >
+      0.υποσυνείδητον(Subconscious)
+    </div>
+
+    <!-- External label -->
+    <div
+      class="label external-label"
+      style="left: {($externalLabel?.x || 0)}px; top: {($externalLabel?.y || 0)}px;"
+      on:click={openExternalDetails}
+      role="button"
+      tabindex="0"
+    >
+      ∞.τὸ πᾶν(All)
+    </div>
   {/if}
 
   <!-- Detail Panel - Chat style on right side -->
@@ -357,17 +406,33 @@
     <div class="detail-panel-overlay" on:click={closeDetailPanel}></div>
     <div class="detail-panel">
       <div class="detail-header">
-        <h2>{faceNames[selectedFace]}</h2>
+        <h2>{selectedFace === 'center' ? '0. subconscious' : selectedFace === 'external' ? '∞. All' : faceNames[selectedFace]}</h2>
         <button class="close-btn" on:click={closeDetailPanel}>&times;</button>
       </div>
       <div class="detail-content">
         <label for="face-details">Details:</label>
-        <textarea
-          id="face-details"
-          bind:value={faceDetails[selectedFace]}
-          rows="10"
-          placeholder="Enter details about this face..."
-        ></textarea>
+        {#if selectedFace === 'center'}
+          <textarea
+            id="face-details"
+            bind:value={centerDetails}
+            rows="10"
+            placeholder="Enter details..."
+          ></textarea>
+        {:else if selectedFace === 'external'}
+          <textarea
+            id="face-details"
+            bind:value={externalDetails}
+            rows="10"
+            placeholder="Enter details..."
+          ></textarea>
+        {:else}
+          <textarea
+            id="face-details"
+            bind:value={faceDetails[selectedFace]}
+            rows="10"
+            placeholder="Enter details..."
+          ></textarea>
+        {/if}
       </div>
       <div class="detail-footer">
         <button class="save-btn" on:click={saveDetails}>Save & Close</button>
@@ -459,6 +524,36 @@ canvas {
   background: rgba(51, 102, 255, 0.95);
   border-color: rgba(51, 102, 255, 1);
   transform: translate(-50%, -50%) scale(1.05);
+}
+
+/* Center label - like face label and clickable */
+.center-label {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* External label - larger and more prominent */
+.external-label {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  background: rgba(10, 10, 26, 0.9);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 2px solid rgba(145, 181, 255, 0.8);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 20px rgba(145, 181, 255, 0.4);
+  pointer-events: auto;
+  cursor: pointer;
+  text-shadow: 0 0 12px rgba(145, 181, 255, 0.6);
+  transition: all 0.2s ease;
+}
+
+.external-label:hover {
+  background: rgba(145, 181, 255, 0.95);
+  border-color: rgba(145, 181, 255, 1);
+  transform: translate(-50%, -50%) scale(1.05);
+  box-shadow: 0 8px 24px rgba(145, 181, 255, 0.6);
 }
 
 /* Toggle Labels Button */
