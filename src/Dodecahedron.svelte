@@ -2,7 +2,7 @@
   import * as THREE from 'three';
   import { onMount } from 'svelte';
   import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-  import { writable } from 'svelte/store';
+  import { writable, get } from 'svelte/store';
 
   let canvas;
 
@@ -80,6 +80,18 @@
   // Toggle labels visibility
   let labelsVisible = true;
 
+  // Arrow drawing state
+  let arrowMode = false;
+  let currentPath = [];  // Labels being added to current arrow
+  const arrows = writable([]);  // Completed arrows with multiple labels each
+  const arrowPaths = writable([]);
+
+  // Context menu state
+  let contextMenuVisible = false;
+  let contextMenuX = 0;
+  let contextMenuY = 0;
+  let contextMenuArrowId = null;
+
   function openFaceDetails(index) {
     selectedFace = index;
     isDetailPanelOpen = true;
@@ -109,6 +121,165 @@
     labelsVisible = !labelsVisible;
   }
 
+  // LocalStorage persistence
+  const ARROWS_STORAGE_KEY = 'dodecahedron-arrows';
+
+  function saveArrowsToLocalStorage() {
+    try {
+      const arrowData = get(arrows);
+      localStorage.setItem(ARROWS_STORAGE_KEY, JSON.stringify(arrowData));
+    } catch (error) {
+      console.error('Failed to save arrows to localStorage:', error);
+    }
+  }
+
+  function loadArrowsFromLocalStorage() {
+    try {
+      const stored = localStorage.getItem(ARROWS_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+
+        // Migrate old format (source/target) to new format (path array)
+        const migrated = parsed.map(arrow => {
+          if (arrow.path) {
+            // Already in new format
+            return arrow;
+          } else if (arrow.source && arrow.target) {
+            // Old format - convert to new format
+            return {
+              id: arrow.id,
+              path: [arrow.source, arrow.target],
+              createdAt: arrow.createdAt
+            };
+          } else {
+            // Invalid format - skip
+            return null;
+          }
+        }).filter(a => a !== null);
+
+        arrows.set(migrated);
+      }
+    } catch (error) {
+      console.error('Failed to load arrows from localStorage:', error);
+      arrows.set([]);
+    }
+  }
+
+  // Arrow mode functions
+  function toggleArrowMode() {
+    arrowMode = !arrowMode;
+    if (!arrowMode) {
+      currentPath = [];
+    }
+  }
+
+  function handleLabelClick(labelType, labelIndex) {
+    if (!arrowMode) return false;
+
+    const labelRef = {
+      type: labelType,
+      index: labelIndex
+    };
+
+    // Add label to current path
+    currentPath = [...currentPath, labelRef];
+
+    return true;
+  }
+
+  function finishArrow() {
+    if (currentPath.length < 2) {
+      alert('An arrow needs at least 2 labels');
+      return;
+    }
+
+    const newArrow = {
+      id: `arrow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      path: currentPath,
+      createdAt: Date.now()
+    };
+
+    arrows.update(arr => [...arr, newArrow]);
+    saveArrowsToLocalStorage();
+    currentPath = [];
+  }
+
+  function cancelCurrentArrow() {
+    currentPath = [];
+  }
+
+  // Context menu functions
+  function handleArrowRightClick(event, arrowId) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    contextMenuX = event.clientX;
+    contextMenuY = event.clientY;
+    contextMenuArrowId = arrowId;
+    contextMenuVisible = true;
+  }
+
+  function deleteArrow() {
+    if (contextMenuArrowId) {
+      arrows.update(arr => arr.filter(a => a.id !== contextMenuArrowId));
+      saveArrowsToLocalStorage();
+    }
+    closeContextMenu();
+  }
+
+  function closeContextMenu() {
+    contextMenuVisible = false;
+    contextMenuArrowId = null;
+  }
+
+  // Arrow position calculator
+  function getLabelPosition(labelRef) {
+    const { type, index } = labelRef;
+
+    switch (type) {
+      case 'vertex':
+        return get(vertexLabels)[index] || { x: 0, y: 0 };
+      case 'edge':
+        return get(edgeLabels)[index] || { x: 0, y: 0 };
+      case 'face':
+        return get(faceLabels)[index] || { x: 0, y: 0 };
+      case 'center':
+        return get(centerLabel) || { x: 0, y: 0 };
+      case 'external':
+        return get(externalLabel) || { x: 0, y: 0 };
+      default:
+        return { x: 0, y: 0 };
+    }
+  }
+
+  function updateArrowPaths() {
+    const currentArrows = get(arrows);
+
+    const paths = currentArrows
+      .filter(arrow => arrow && arrow.path && Array.isArray(arrow.path))
+      .map(arrow => {
+        // Get positions for all labels in the path
+        const positions = arrow.path.map(labelRef => getLabelPosition(labelRef));
+
+        return {
+          id: arrow.id,
+          positions  // Array of {x, y} for each label in the path
+        };
+      });
+
+    // Also include current path being built (if any)
+    if (currentPath.length > 0) {
+      const currentPositions = currentPath.map(labelRef => getLabelPosition(labelRef));
+      paths.push({
+        id: 'current',
+        positions: currentPositions,
+        isTemporary: true
+      });
+    }
+
+    arrowPaths.set(paths);
+  }
+
   // Geometric center F0
   const F0 = new THREE.Vector3(
     vertices.reduce((sum,v)=>sum+v.x,0)/vertices.length,
@@ -125,6 +296,9 @@
   }
 
   onMount(() => {
+    // Load saved arrows from localStorage
+    loadArrowsFromLocalStorage();
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a1a);
 
@@ -325,9 +499,12 @@
       centerLabel.set(toScreenPosition(centerWorldPos, camera, renderer));
 
       // Update external label (positioned directly above F0)
-      const externalPos = new THREE.Vector3(0, 1, 2); 
+      const externalPos = new THREE.Vector3(0, 1, 2);
       const externalWorldPos = externalPos.applyMatrix4(dodecahedronGroup.matrixWorld);
       externalLabel.set(toScreenPosition(externalWorldPos, camera, renderer));
+
+      // Update arrow paths based on current label positions
+      updateArrowPaths();
 
       renderer.render(scene, camera);
     }
@@ -345,22 +522,91 @@
 <div class="dodeca-container">
   <canvas bind:this={canvas}></canvas>
 
+  <!-- SVG Arrow Overlay -->
+  <svg class="arrow-overlay">
+    <defs>
+      <!-- Arrowhead marker -->
+      <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+        <polygon points="0 0, 10 3, 0 6" fill="#ff6699" />
+      </marker>
+    </defs>
+
+    <!-- Render arrows -->
+    {#each $arrowPaths as arrow (arrow.id)}
+      {#if arrow.positions && arrow.positions.length >= 2}
+        {@const pathData = arrow.positions.map((pos, i) =>
+          i === 0 ? `M ${pos.x} ${pos.y}` : `L ${pos.x} ${pos.y}`
+        ).join(' ')}
+        <path
+          d={pathData}
+          stroke="#ff6699"
+          stroke-width={arrow.isTemporary ? 3 : 2}
+          stroke-dasharray={arrow.isTemporary ? '5,5' : 'none'}
+          fill="none"
+          marker-end="url(#arrowhead)"
+          class="arrow-path"
+          class:temporary={arrow.isTemporary}
+          data-arrow-id={arrow.id}
+          on:contextmenu={(e) => !arrow.isTemporary && handleArrowRightClick(e, arrow.id)}
+        />
+        <!-- Draw circles at each waypoint -->
+        {#each arrow.positions as pos, i}
+          <circle
+            cx={pos.x}
+            cy={pos.y}
+            r="3"
+            fill="#ff6699"
+            class="arrow-waypoint"
+          />
+        {/each}
+      {/if}
+    {/each}
+  </svg>
+
   <!-- Toggle Labels Button -->
   <button class="toggle-labels-btn" on:click={toggleLabels}>
     {labelsVisible ? 'Hide Labels' : 'Show Labels'}
   </button>
 
+  <!-- Arrow Mode Button -->
+  <button class="arrow-mode-btn" class:active={arrowMode} on:click={toggleArrowMode}>
+    {arrowMode ? 'Exit Arrow Mode' : 'Arrow Mode'}
+  </button>
+
+  <!-- Arrow Path Building Controls (show when building a path) -->
+  {#if arrowMode && currentPath.length > 0}
+    <div class="arrow-controls">
+      <div class="arrow-path-info">Path: {currentPath.length} label{currentPath.length !== 1 ? 's' : ''}</div>
+      <button class="finish-arrow-btn" on:click={finishArrow}>Finish Arrow</button>
+      <button class="cancel-arrow-btn" on:click={cancelCurrentArrow}>Cancel</button>
+    </div>
+  {/if}
+
   <!-- Vertex labels -->
   {#if labelsVisible}
     {#each vertexNames as name, i}
-      <div class="label vertex-label" style="left: {($vertexLabels[i]?.x || 0)}px; top: {($vertexLabels[i]?.y || 0)}px;">
+      <div
+        class="label vertex-label"
+        class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'vertex' && label.index === i)}
+        style="left: {($vertexLabels[i]?.x || 0)}px; top: {($vertexLabels[i]?.y || 0)}px;"
+        on:click={() => handleLabelClick('vertex', i)}
+        role="button"
+        tabindex="0"
+      >
         {name}
       </div>
     {/each}
 
     <!-- Edge labels -->
     {#each edgeNames as name, i}
-      <div class="label edge-label" style="left: {($edgeLabels[i]?.x || 0)}px; top: {($edgeLabels[i]?.y || 0)}px;">
+      <div
+        class="label edge-label"
+        class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'edge' && label.index === i)}
+        style="left: {($edgeLabels[i]?.x || 0)}px; top: {($edgeLabels[i]?.y || 0)}px;"
+        on:click={() => handleLabelClick('edge', i)}
+        role="button"
+        tabindex="0"
+      >
         {name}
       </div>
     {/each}
@@ -369,8 +615,13 @@
     {#each faceNames as name, i}
       <div
         class="label face-label"
+        class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'face' && label.index === i)}
         style="left: {($faceLabels[i]?.x || 0)}px; top: {($faceLabels[i]?.y || 0)}px;"
-        on:click={() => openFaceDetails(i)}
+        on:click={() => {
+          if (!handleLabelClick('face', i)) {
+            openFaceDetails(i);
+          }
+        }}
         role="button"
         tabindex="0"
       >
@@ -381,8 +632,13 @@
     <!-- Center label (F0) -->
     <div
       class="label face-label center-label"
+      class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'center')}
       style="left: {($centerLabel?.x || 0)}px; top: {($centerLabel?.y || 0)}px;"
-      on:click={openCenterDetails}
+      on:click={() => {
+        if (!handleLabelClick('center', null)) {
+          openCenterDetails();
+        }
+      }}
       role="button"
       tabindex="0"
     >
@@ -392,8 +648,13 @@
     <!-- External label -->
     <div
       class="label external-label"
+      class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'external')}
       style="left: {($externalLabel?.x || 0)}px; top: {($externalLabel?.y || 0)}px;"
-      on:click={openExternalDetails}
+      on:click={() => {
+        if (!handleLabelClick('external', null)) {
+          openExternalDetails();
+        }
+      }}
       role="button"
       tabindex="0"
     >
@@ -439,6 +700,21 @@
       </div>
     </div>
   {/if}
+
+  <!-- Context Menu -->
+  {#if contextMenuVisible}
+    <div
+      class="context-menu"
+      style="left: {contextMenuX}px; top: {contextMenuY}px;"
+    >
+      <div class="context-menu-item" on:click={deleteArrow}>Delete Arrow</div>
+    </div>
+  {/if}
+
+  <!-- Context menu backdrop -->
+  {#if contextMenuVisible}
+    <div class="context-menu-backdrop" on:click={closeContextMenu}></div>
+  {/if}
 </div>
 
 <style>
@@ -461,12 +737,16 @@ canvas {
   white-space: nowrap;
   text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
   transition: all 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 /* Face labels - large and prominent */
 .face-label {
   color: #ffffff;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 600;
   background: rgba(10, 10, 26, 0.85);
   padding: 5px 10px;
@@ -481,7 +761,7 @@ canvas {
 /* Vertex labels - smaller and subtle */
 .vertex-label {
   color: #88ffbb;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 500;
   background: rgba(34, 102, 68, 0.6);
   padding: 2px 6px;
@@ -502,7 +782,7 @@ canvas {
 /* Edge labels - very subtle */
 .edge-label {
   color: #99bbff;
-  font-size: 9px;
+  font-size: 7px;
   font-weight: 400;
   background: rgba(85, 136, 255, 0.3);
   padding: 2px 5px;
@@ -535,7 +815,7 @@ canvas {
 /* External label - larger and more prominent */
 .external-label {
   color: #ffffff;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 700;
   background: rgba(10, 10, 26, 0.9);
   padding: 8px 16px;
@@ -724,5 +1004,161 @@ canvas {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+/* Arrow-related styles */
+.arrow-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.arrow-path {
+  cursor: context-menu;
+  pointer-events: stroke;
+  transition: stroke-width 0.2s ease, opacity 0.2s ease;
+  filter: drop-shadow(0 2px 4px rgba(255, 102, 153, 0.4));
+}
+
+.arrow-path:hover {
+  stroke-width: 3;
+  stroke: #ff88bb;
+  filter: drop-shadow(0 3px 8px rgba(255, 102, 153, 0.8));
+}
+
+.arrow-mode-btn {
+  position: fixed;
+  top: 20px;
+  left: 180px;
+  z-index: 100;
+  background: rgba(15, 15, 35, 0.9);
+  border: 2px solid rgba(255, 102, 153, 0.6);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.arrow-mode-btn:hover {
+  background: rgba(255, 102, 153, 0.6);
+  border-color: rgba(255, 102, 153, 1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 102, 153, 0.4);
+}
+
+.arrow-mode-btn.active {
+  background: rgba(255, 102, 153, 0.9);
+  border-color: rgba(255, 102, 153, 1);
+  box-shadow: 0 0 20px rgba(255, 102, 153, 0.6);
+}
+
+.arrow-source-selected {
+  border: 3px solid #ff6699 !important;
+  box-shadow: 0 0 20px rgba(255, 102, 153, 0.8);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.05); }
+}
+
+.context-menu {
+  position: fixed;
+  background: rgba(15, 15, 35, 0.95);
+  border: 2px solid rgba(255, 102, 153, 0.8);
+  border-radius: 6px;
+  padding: 4px 0;
+  z-index: 2000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.context-menu-item:hover {
+  background: rgba(255, 102, 153, 0.3);
+}
+
+.context-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1999;
+}
+
+.arrow-waypoint {
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.arrow-controls {
+  position: fixed;
+  top: 80px;
+  left: 20px;
+  z-index: 100;
+  background: rgba(15, 15, 35, 0.95);
+  border: 2px solid rgba(255, 102, 153, 0.8);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+.arrow-path-info {
+  color: #ff6699;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.finish-arrow-btn, .cancel-arrow-btn {
+  background: rgba(255, 102, 153, 0.8);
+  border: 2px solid rgba(255, 102, 153, 1);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.finish-arrow-btn:hover {
+  background: rgba(255, 102, 153, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 102, 153, 0.4);
+}
+
+.cancel-arrow-btn {
+  background: rgba(255, 82, 82, 0.8);
+  border-color: rgba(255, 82, 82, 1);
+}
+
+.cancel-arrow-btn:hover {
+  background: rgba(255, 82, 82, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 82, 82, 0.4);
 }
 </style>
