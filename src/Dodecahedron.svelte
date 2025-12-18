@@ -37,14 +37,14 @@
   ];
 
   let vertexNames = [
-    'I', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9',
-    'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18', 'V19'
+    'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 
+    'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18', 'V19', 'V20'
   ];
 
   let edgeNames = [
-    'E0', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9',
-    'E10', 'E11', 'E12', 'E13', 'E14', 'E15', 'E16', 'E17', 'E18', 'E19',
-    'E20', 'E21', 'E22', 'E23', 'E24', 'E25', 'E26', 'E27', 'E28', 'E29'
+    'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'E10', 
+    'E11', 'E12', 'E13', 'E14', 'E15', 'E16', 'E17', 'E18', 'E19', 'E20', 
+    'E21', 'E22', 'E23', 'E24', 'E25', 'E26', 'E27', 'E28', 'E29', 'E30'
   ];
 
   // Face labels (12 pentagonal faces)
@@ -667,7 +667,7 @@
     <div class="detail-panel-overlay" on:click={closeDetailPanel}></div>
     <div class="detail-panel">
       <div class="detail-header">
-        <h2>{selectedFace === 'center' ? '0. subconscious' : selectedFace === 'external' ? '∞. All' : faceNames[selectedFace]}</h2>
+        <h2>{selectedFace === 'center' ? '0.υποσυνείδητον(Subconscious)' : selectedFace === 'external' ? '∞.τὸ πᾶν(All)' : faceNames[selectedFace]}</h2>
         <button class="close-btn" on:click={closeDetailPanel}>&times;</button>
       </div>
       <div class="detail-content">
