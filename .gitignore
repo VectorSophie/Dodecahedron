@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Manuscript source (not part of the repo)
+*.pdf
+
 # SvelteKit
 .svelte-kit
 build

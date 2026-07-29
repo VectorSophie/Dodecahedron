@@ -37,7 +37,7 @@
   ];
 
   let vertexNames = [
-    'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 
+    'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10',
     'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18', 'V19', 'V20'
   ];
 
@@ -53,19 +53,36 @@
     '10.Μετάδοσις(Communication)', '3. Κοινωνία(Society)', '2.Εγώ(EGO)', '8.Χρόνος(Time)', '9.Θεός(God)', '12.Γένεσις(Evolution)'
   ];
 
-  // Face details (editable)
-  let faceDetails = [
-    'Details about Bias...', 'Details about The World...', 'Details about Order...',
-    'Details about Sin...', 'Details about Nature...', 'Details about Reason...',
-    'Details about Communication...', 'Details about Society...', 'Details about EGO...',
-    'Details about Time...', 'Details about God...', 'Details about Evolution...'
+  // Plain-English variants (index-aligned with faceNames) for the language toggle
+  let faceNamesEnglish = [
+    '1. Bias', '4. World', '5. Order', '11. Sin', '7. Nature', '6. Reason',
+    '10. Communication', '3. Society', '2. Ego', '8. Time', '9. God', '12. Evolution'
   ];
 
-  // Center label details (editable)
-  let centerDetails = 'Details about subconscious...';
+  // Toggle between the Greek+English plane names and plain English titles
+  let englishLabels = false;
 
-  // External label details (editable)
-  let externalDetails = 'Details about all...';
+  // Face details (editable) — from Hyperrealistic Relativism v1.1
+  let faceDetails = [
+    "Bias is the operation by which a finite observer selects what becomes available for attention — the glass through which reality is seen, not dirt upon it. It is inevitable, compresses reality into usable categories, and hardens into identity when defended long enough. \"The most dangerous observer is not the biased observer. It is the observer who believes they are neutral.\"",
+    "World is what resists interpretation through consequence — the field where reality pushes back regardless of belief. Bias, Ego, and Society all compress reality into something usable; the World is what exceeds every compression. \"The World does not negotiate with understanding before exerting consequence.\"",
+    "Order is uncertainty made survivable through structure — the attempt to make tomorrow resemble today. It gives freedom its shape and, in the same motion, its limit. It requires exclusion, and left unrevised it fossilizes into violence that outlives the fear that first justified it.",
+    "Sin is a rupture in relation and responsibility that persists through concealment, repetition, or failed acknowledgment. \"Hell opens when the self cannot confess itself back into relation\" — and, crucially, the gates open only from the inside.",
+    "Nature is the recurrence of material and ecological conditions without moral intention — an almost-karmic world where consequence returns unevenly, filtered through power, bodies, and circumstance. Return is real; justice is not guaranteed by it.",
+    "Reason creates distance from immediate pressure so that judgment becomes possible — necessary, and never free of the conditions that produced it. It can offer mercy by delaying a verdict, or become an alibi dressing inherited desire in the language of objectivity.",
+    "Communication is the translation of private experience into publicly negotiable signs. Meaning is never transmitted whole, only triggered. \"Communication does not move the beetle from one box to another. It teaches the boxes how to behave as though they share one.\"",
+    "Society is the synchronization of compressed realities among multiple selves — a distributed Ego holding many unstable people together as \"we.\" It is felt as a mesh of relationships and functions, underneath, as an indifferent filter, outsourcing regulation no one can sustain alone.",
+    "Ego is the operation that binds selected experience into a continuing self — not the truth of who you are, but the story that makes the self bearable. \"'I am who I am' is not a fact. It is a maintenance ritual.\"",
+    "Time is the operation by which events become ordered, remembered, anticipated, and made irreversible. Physics finds no universal \"now\"; the felt experience of passage may be the deepest illusion consciousness produces — though the physics itself licenses less certainty than the feeling implies.",
+    "God is the name given to totality, transcendence, or the failure of the boundary between part and whole — not an entity to locate, but what remains when observer and observed stop insisting on separation. \"God is not something that exists. It is what remains when you can no longer maintain the illusion of separation.\"",
+    "Evolution is the transmission of transformed structures into future conditions. \"It does not ask what deserved to survive. It only asks what did.\" Survival proves compatibility with pressure, never goodness — and this book, versioned rather than finished, submits itself to the same test."
+  ];
+
+  // Center label details (editable) — the Void of Id
+  let centerDetails = "The Void of Id is the unnamed force beneath the constructed self: hunger, fear, impulse, desire — the pressure that arrives before justification. Every plane above translates it into acceptable language; none of them escape it. \"The Id is the dark page beneath the ink.\"";
+
+  // External label details (editable) — the finitive SuperEGO
+  let externalDetails = "The SuperEGO is the periphery surrounding all twelve planes — inherited authority, internalized judgment, the gaze of others pressed permanently into your shape. It is not one voice but the accumulated weight of everyone else's structure pressing on yours. \"The SuperEGO must be neither worshipped nor erased. It must be made finite.\"";
 
   const vertexLabels = writable([]);
   const edgeLabels = writable([]);
@@ -84,13 +101,142 @@
   let arrowMode = false;
   let currentPath = [];  // Labels being added to current arrow
   const arrows = writable([]);  // Completed arrows with multiple labels each
-  const arrowPaths = writable([]);
 
   // Context menu state
   let contextMenuVisible = false;
   let contextMenuX = 0;
   let contextMenuY = 0;
   let contextMenuArrowId = null;
+
+  // Sequence mode: select two adjacent planes (incl. Id/SuperEGO) and export a PNG
+  let sequenceMode = false;
+  let seqSelected = []; // up to 2 nodes, in click order: [{type:'face', index}] | [{type:'center'}] | [{type:'external'}]
+  let captureFn = null;
+  let orientFn = null;
+  let rebuildSnakesFn = null;
+
+  // The book's pressure-passing cycle, plus SuperEGO stitched in at the seam
+  // (Evolution -> SuperEGO -> Bias), per the manuscript's own sequence table.
+  const ringOrder = [
+    { type: 'face', index: 0 },   // 1. Bias
+    { type: 'face', index: 8 },   // 2. Ego
+    { type: 'face', index: 7 },   // 3. Society
+    { type: 'face', index: 1 },   // 4. World
+    { type: 'face', index: 2 },   // 5. Order
+    { type: 'face', index: 5 },   // 6. Reason
+    { type: 'center' },           //    Id (Void)
+    { type: 'face', index: 4 },   // 7. Nature
+    { type: 'face', index: 9 },   // 8. Time
+    { type: 'face', index: 10 },  // 9. God
+    { type: 'face', index: 6 },   // 10. Communication
+    { type: 'face', index: 3 },   // 11. Sin
+    { type: 'face', index: 11 },  // 12. Evolution
+    { type: 'external' }          //    SuperEGO
+  ];
+  const ringSlugs = ['bias', 'ego', 'society', 'world', 'order', 'reason', 'id', 'nature', 'time', 'god', 'communication', 'sin', 'evolution', 'superego'];
+
+  function ringIndexOf(node) {
+    return ringOrder.findIndex(n => n.type === node.type && n.index === node.index);
+  }
+
+  function isAdjacentNode(a, b) {
+    const ia = ringIndexOf(a);
+    const ib = ringIndexOf(b);
+    if (ia === -1 || ib === -1) return false;
+    const n = ringOrder.length;
+    const diff = (ib - ia + n) % n;
+    return diff === 1 || diff === n - 1;
+  }
+
+  function sameNode(a, b) {
+    return a.type === b.type && a.index === b.index;
+  }
+
+  function getNodeLabel(node) {
+    if (node.type === 'face') return englishLabels ? faceNamesEnglish[node.index] : faceNames[node.index];
+    if (node.type === 'center') return englishLabels ? '0. Subconscious' : '0.υποσυνείδητον(Subconscious)';
+    return englishLabels ? '∞. All' : '∞.τὸ πᾶν(All)';
+  }
+
+  function slugFor(node) {
+    return ringSlugs[ringIndexOf(node)];
+  }
+
+  function toggleSequenceMode() {
+    sequenceMode = !sequenceMode;
+    seqSelected = [];
+    if (sequenceMode) {
+      arrowMode = false;
+      currentPath = [];
+    }
+  }
+
+  function handleSequenceLabelClick(type, index) {
+    const node = { type, index };
+    if (seqSelected.length === 0) {
+      seqSelected = [node];
+    } else if (seqSelected.length === 1) {
+      if (sameNode(seqSelected[0], node)) {
+        seqSelected = [];
+      } else if (isAdjacentNode(seqSelected[0], node)) {
+        seqSelected = [seqSelected[0], node];
+        if (orientFn) orientFn(seqSelected[0], seqSelected[1]);
+      } else {
+        seqSelected = [node];
+      }
+    } else {
+      seqSelected = [node];
+    }
+  }
+
+  // Pure canvas-2D drawing helpers for the exported PNG (no DOM/Three.js deps)
+  function drawCaptureArrow(ctx, a, b) {
+    const headLen = 14;
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    ctx.save();
+    ctx.strokeStyle = '#ffcc44';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.fillStyle = '#ffcc44';
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - headLen * Math.cos(angle - Math.PI / 6), b.y - headLen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(b.x - headLen * Math.cos(angle + Math.PI / 6), b.y - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCaptureLabel(ctx, pos, text) {
+    ctx.save();
+    ctx.font = '600 15px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+    const paddingX = 12, paddingY = 8;
+    const w = ctx.measureText(text).width + paddingX * 2;
+    const h = 15 + paddingY * 2;
+    const x = pos.x - w / 2;
+    const y = pos.y - h / 2;
+    const r = 8;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(10,10,26,0.9)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,204,68,0.9)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, pos.x, pos.y + 1);
+    ctx.restore();
+  }
 
   function openFaceDetails(index) {
     selectedFace = index;
@@ -170,6 +316,9 @@
     arrowMode = !arrowMode;
     if (!arrowMode) {
       currentPath = [];
+    } else {
+      sequenceMode = false;
+      seqSelected = [];
     }
   }
 
@@ -208,6 +357,14 @@
     currentPath = [];
   }
 
+  // Rebuild the in-progress ghost snake whenever the path being built changes.
+  // Finished arrows are handled separately, via a direct subscription to the
+  // `arrows` store inside onMount.
+  $: {
+    currentPath;
+    if (rebuildSnakesFn) rebuildSnakesFn();
+  }
+
   // Context menu functions
   function handleArrowRightClick(event, arrowId) {
     event.preventDefault();
@@ -232,54 +389,6 @@
     contextMenuArrowId = null;
   }
 
-  // Arrow position calculator
-  function getLabelPosition(labelRef) {
-    const { type, index } = labelRef;
-
-    switch (type) {
-      case 'vertex':
-        return get(vertexLabels)[index] || { x: 0, y: 0 };
-      case 'edge':
-        return get(edgeLabels)[index] || { x: 0, y: 0 };
-      case 'face':
-        return get(faceLabels)[index] || { x: 0, y: 0 };
-      case 'center':
-        return get(centerLabel) || { x: 0, y: 0 };
-      case 'external':
-        return get(externalLabel) || { x: 0, y: 0 };
-      default:
-        return { x: 0, y: 0 };
-    }
-  }
-
-  function updateArrowPaths() {
-    const currentArrows = get(arrows);
-
-    const paths = currentArrows
-      .filter(arrow => arrow && arrow.path && Array.isArray(arrow.path))
-      .map(arrow => {
-        // Get positions for all labels in the path
-        const positions = arrow.path.map(labelRef => getLabelPosition(labelRef));
-
-        return {
-          id: arrow.id,
-          positions  // Array of {x, y} for each label in the path
-        };
-      });
-
-    // Also include current path being built (if any)
-    if (currentPath.length > 0) {
-      const currentPositions = currentPath.map(labelRef => getLabelPosition(labelRef));
-      paths.push({
-        id: 'current',
-        positions: currentPositions,
-        isTemporary: true
-      });
-    }
-
-    arrowPaths.set(paths);
-  }
-
   // Geometric center F0
   const F0 = new THREE.Vector3(
     vertices.reduce((sum,v)=>sum+v.x,0)/vertices.length,
@@ -295,6 +404,97 @@
     return {x,y};
   }
 
+  // Local-space (pre-matrixWorld) position for any label reference, used to
+  // build the 3D snake geometry so it inherits the dodecahedron's own
+  // rotation for free instead of needing a per-frame 2D projection.
+  function getLocalPosForRef(ref) {
+    switch (ref.type) {
+      case 'vertex':
+        return vertices[ref.index].clone();
+      case 'edge': {
+        const [i, j] = edgesIndices[ref.index];
+        return vertices[i].clone().add(vertices[j]).multiplyScalar(0.5);
+      }
+      case 'face': {
+        const fv = facesVertices[ref.index];
+        return fv.reduce((acc, idx) => acc.add(vertices[idx].clone()), new THREE.Vector3()).divideScalar(fv.length);
+      }
+      case 'center':
+        return F0.clone();
+      case 'external':
+        return new THREE.Vector3(0, 1, 2);
+      default:
+        return new THREE.Vector3();
+    }
+  }
+
+  // A straight cylindrical strut between two points, oriented to match the
+  // segment — used for the frame's edges (cover art has chunky beveled bars,
+  // not thin wire lines).
+  function buildStrutMesh(a, b, radius, material) {
+    const dir = new THREE.Vector3().subVectors(b, a);
+    const length = dir.length();
+    const geom = new THREE.CylinderGeometry(radius, radius, length, 6, 1);
+    const mesh = new THREE.Mesh(geom, material);
+    mesh.position.copy(a).add(b).multiplyScalar(0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    return mesh;
+  }
+
+  // Cover-art palette: alternating navy/gold snake bodies, silver wireframe.
+  const SNAKE_COLORS = [0x2c4a72, 0xd8a23a];
+  const GHOST_SNAKE_COLOR = 0xff6699;
+  const STRUT_COLOR = 0xd7d9dc;
+
+  // A low-poly tube "snake" body following the path's waypoints, with a
+  // simple wedge head at the leading end. Real 3D geometry (not a 2D SVG
+  // overlay), so it moves correctly with any spin/orbit of the shape.
+  function buildSnakeMesh(points, color, { opacity = 1, arrowId = null } = {}) {
+    if (points.length < 2) return null;
+
+    const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.2);
+    const tubularSegments = Math.max(12, points.length * 14);
+    const radius = 0.045;
+    const tubeGeom = new THREE.TubeGeometry(curve, tubularSegments, radius, 6, false);
+    const material = new THREE.MeshPhongMaterial({
+      color,
+      flatShading: true,
+      shininess: 15,
+      specular: 0x333333,
+      transparent: opacity < 1,
+      opacity
+    });
+
+    const group = new THREE.Group();
+
+    const bodyMesh = new THREE.Mesh(tubeGeom, material);
+    bodyMesh.userData = { arrowId };
+    group.add(bodyMesh);
+
+    const endPoint = points[points.length - 1];
+    const tangent = curve.getTangentAt(1).normalize();
+    const headLength = radius * 6;
+    const headGeom = new THREE.ConeGeometry(radius * 2.2, headLength, 6);
+    headGeom.rotateX(-Math.PI / 2); // apex along local -Z, to match lookAt's convention
+    const headMesh = new THREE.Mesh(headGeom, material);
+    headMesh.userData = { arrowId };
+    headMesh.position.copy(endPoint).addScaledVector(tangent, headLength * 0.3);
+    headMesh.lookAt(endPoint.clone().addScaledVector(tangent, 10));
+    group.add(headMesh);
+
+    return group;
+  }
+
+  // A single small marker for a one-point path, before there's enough to
+  // draw a snake body yet.
+  function buildGhostMarker(point) {
+    const geom = new THREE.SphereGeometry(0.05, 8, 8);
+    const material = new THREE.MeshPhongMaterial({ color: GHOST_SNAKE_COLOR, flatShading: true, transparent: true, opacity: 0.85 });
+    const mesh = new THREE.Mesh(geom, material);
+    mesh.position.copy(point);
+    return mesh;
+  }
+
   onMount(() => {
     // Load saved arrows from localStorage
     loadArrowsFromLocalStorage();
@@ -305,7 +505,7 @@
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
     camera.position.set(0,0,5);
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
 
@@ -331,17 +531,21 @@
     const dodecahedronGroup = new THREE.Group();
     scene.add(dodecahedronGroup);
 
-    // Draw faces (semi-transparent with better material)
+    // Draw faces (nearly invisible by default — cover art shows an open
+    // wireframe, not filled panels; they only become visible under
+    // sequence-mode highlighting)
     const faceMaterial = new THREE.MeshPhongMaterial({
       color: 0x3366ff,
       transparent: true,
-      opacity: 0.4,
+      opacity: 0.06,
       side: THREE.DoubleSide,
       shininess: 30,
-      specular: 0x4488ff
+      specular: 0x4488ff,
+      flatShading: true
     });
 
-    facesVertices.forEach(faceIndices => {
+    const faceMeshes = [];
+    facesVertices.forEach((faceIndices, faceIdx) => {
       const shape = new THREE.Shape();
       // Project the pentagon onto a plane for rendering
       const faceVerts = faceIndices.map(idx => vertices[idx]);
@@ -370,32 +574,36 @@
       geometry.setIndex(indices);
       geometry.computeVertexNormals();
 
-      const mesh = new THREE.Mesh(geometry, faceMaterial);
+      // Cloned material per face so sequence-mode can highlight one face at a time
+      const mesh = new THREE.Mesh(geometry, faceMaterial.clone());
+      mesh.userData = { index: faceIdx };
       dodecahedronGroup.add(mesh);
+      faceMeshes.push(mesh);
     });
 
-    // Draw edges (more subtle)
-    const edgeMaterial = new THREE.LineBasicMaterial({
-      color: 0x5588ff,
-      opacity: 0.6,
-      transparent: true
+    // Draw edges as chunky beveled struts (cover art's wireframe, not thin lines)
+    const strutMaterial = new THREE.MeshPhongMaterial({
+      color: STRUT_COLOR,
+      flatShading: true,
+      shininess: 60,
+      specular: 0xffffff
     });
     const edgeObjects = [];
     edgesIndices.forEach(([i,j]) => {
-      const geometry = new THREE.BufferGeometry().setFromPoints([vertices[i], vertices[j]]);
-      const line = new THREE.Line(geometry, edgeMaterial);
-      dodecahedronGroup.add(line);
-      edgeObjects.push({line, i, j});
+      const strut = buildStrutMesh(vertices[i], vertices[j], 0.028, strutMaterial);
+      dodecahedronGroup.add(strut);
+      edgeObjects.push({line: strut, i, j});
     });
 
-    // Draw vertices (smaller and more subtle)
+    // Draw vertices as small faceted joints matching the strut color
     const vertexMaterial = new THREE.MeshPhongMaterial({
-      color: 0x44ff88,
-      emissive: 0x226644,
-      shininess: 50
+      color: STRUT_COLOR,
+      emissive: 0x2a2a2e,
+      flatShading: true,
+      shininess: 60
     });
     const spheres = vertices.map((v, idx) => {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(0.04), vertexMaterial.clone());
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), vertexMaterial.clone());
       s.position.copy(v);
       s.userData = { index: idx };
       dodecahedronGroup.add(s);
@@ -406,9 +614,10 @@
     const f0Material = new THREE.MeshPhongMaterial({
       color: 0x91b5ff,
       emissive: 0x4a5a7f,
+      flatShading: true,
       shininess: 100
     });
-    const f0Sphere = new THREE.Mesh(new THREE.SphereGeometry(0.06), f0Material);
+    const f0Sphere = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), f0Material);
     f0Sphere.position.copy(F0);
     dodecahedronGroup.add(f0Sphere);
 
@@ -470,13 +679,24 @@
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(spheres);
       spheres.forEach(s => {
-        s.material.color.set(0x44ff88);
-        s.material.emissive.set(0x226644);
+        s.material.color.set(STRUT_COLOR);
+        s.material.emissive.set(0x2a2a2e);
       });
       if(intersects.length > 0){
         intersects[0].object.material.color.set(0xffff44);
         intersects[0].object.material.emissive.set(0x888822);
       }
+
+      // Sequence-mode highlighting (faces + Id sphere)
+      const anySeq = sequenceMode && seqSelected.length > 0;
+      faceMeshes.forEach((mesh, idx) => {
+        const isSelected = seqSelected.some(n => n.type === 'face' && n.index === idx);
+        mesh.material.color.set(isSelected ? 0xffcc44 : 0x3366ff);
+        mesh.material.opacity = isSelected ? 0.85 : (anySeq ? 0.12 : 0.06);
+      });
+      const idSelected = seqSelected.some(n => n.type === 'center');
+      f0Sphere.material.color.set(idSelected ? 0xffcc44 : 0x91b5ff);
+      f0Sphere.material.emissive.set(idSelected ? 0x886611 : 0x4a5a7f);
 
       // Update labels (transform by dodecahedronGroup)
       vertexLabels.set(vertices.map(v => {
@@ -503,12 +723,182 @@
       const externalWorldPos = externalPos.applyMatrix4(dodecahedronGroup.matrixWorld);
       externalLabel.set(toScreenPosition(externalWorldPos, camera, renderer));
 
-      // Update arrow paths based on current label positions
-      updateArrowPaths();
-
       renderer.render(scene, camera);
     }
+
+    // Snake-mode annotations (Arrow Mode), styled after the book cover: a
+    // low-poly tube "snake" body with a wedge head, alternating navy/gold
+    // per finished arrow. Rendered as real 3D geometry attached to
+    // dodecahedronGroup, so it moves correctly with any spin/orbit instead
+    // of living on a flat 2D overlay.
+    const snakesGroup = new THREE.Group();
+    dodecahedronGroup.add(snakesGroup);
+    let allSnakeMeshes = [];
+
+    function clearSnakes() {
+      snakesGroup.children.slice().forEach(child => {
+        snakesGroup.remove(child);
+        child.traverse(obj => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) obj.material.dispose();
+        });
+      });
+      allSnakeMeshes = [];
+    }
+
+    function rebuildSnakes() {
+      clearSnakes();
+
+      const finishedArrows = get(arrows).filter(a => a && Array.isArray(a.path) && a.path.length >= 2);
+      finishedArrows.forEach((arrow, idx) => {
+        const points = arrow.path.map(getLocalPosForRef);
+        const color = SNAKE_COLORS[idx % SNAKE_COLORS.length];
+        const snake = buildSnakeMesh(points, color, { arrowId: arrow.id });
+        if (snake) {
+          snakesGroup.add(snake);
+          allSnakeMeshes.push(...snake.children);
+        }
+      });
+
+      if (currentPath.length >= 2) {
+        const points = currentPath.map(getLocalPosForRef);
+        const ghost = buildSnakeMesh(points, GHOST_SNAKE_COLOR, { opacity: 0.55 });
+        if (ghost) snakesGroup.add(ghost);
+      } else if (currentPath.length === 1) {
+        snakesGroup.add(buildGhostMarker(getLocalPosForRef(currentPath[0])));
+      }
+    }
+
+    rebuildSnakesFn = rebuildSnakes;
+    arrows.subscribe(() => rebuildSnakes()); // fires immediately with the current value too
+
+    // Right-click a snake to delete its arrow (ghost/in-progress snakes have
+    // no arrowId and are ignored here).
+    canvas.addEventListener('contextmenu', (event) => {
+      const ndc = new THREE.Vector2(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+      );
+      raycaster.setFromCamera(ndc, camera);
+      const hits = raycaster.intersectObjects(allSnakeMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.arrowId) {
+        event.preventDefault();
+        handleArrowRightClick(event, hits[0].object.userData.arrowId);
+      }
+    });
+
     animate();
+
+    // Screenshot a camera view that faces the two currently selected sequence planes,
+    // with a gold arrow and labels burned into the exported PNG.
+    function computeNodeWorldPos(node) {
+      if (node.type === 'face') {
+        const fv = facesVertices[node.index];
+        const center = fv.reduce((acc, idx) => acc.add(vertices[idx].clone()), new THREE.Vector3()).divideScalar(fv.length);
+        return center.applyMatrix4(dodecahedronGroup.matrixWorld);
+      }
+      if (node.type === 'center') {
+        return F0.clone().applyMatrix4(dodecahedronGroup.matrixWorld);
+      }
+      return new THREE.Vector3(0, 1, 2).applyMatrix4(dodecahedronGroup.matrixWorld);
+    }
+
+    function computeNodeScreenPos(node) {
+      return toScreenPosition(computeNodeWorldPos(node), camera, renderer);
+    }
+
+    // Leave the camera exactly where it starts (looking straight down -Z,
+    // no tilt, no roll) and instead spin the shape itself around the world Y
+    // axis, like a turntable, until the two selected planes face front. Bias
+    // (face 0) and Evolution (face 11) are the model's exact top/bottom poles
+    // after the initial mount-time rotation, so a Y-axis spin never disturbs
+    // them — they stay level, like the flat caps of a spinning cylinder,
+    // while everything else sweeps around the side. Only the camera's
+    // distance changes, to zoom in on the result.
+    orientFn = function orientCameraToPair(nodeA, nodeB) {
+      const distance = 3.4; // zoomed in from the initial view distance of 5
+
+      function bearing(node) {
+        const pos = computeNodeWorldPos(node);
+        return Math.atan2(pos.x, pos.z); // angle around the Y axis, 0 = facing the camera
+      }
+
+      let targetAngle;
+      if (nodeA.type === 'center') {
+        // Id sits at the exact center of the shape; it's always dead-center
+        // on screen no matter how far the turntable spins, so just aim for
+        // the other plane.
+        targetAngle = bearing(nodeB);
+      } else if (nodeB.type === 'center') {
+        targetAngle = bearing(nodeA);
+      } else {
+        const angA = bearing(nodeA);
+        const angB = bearing(nodeB);
+        // Circular mean of the two bearings (handles wraparound correctly).
+        const sumX = Math.sin(angA) + Math.sin(angB);
+        const sumZ = Math.cos(angA) + Math.cos(angB);
+        if (sumX * sumX + sumZ * sumZ > 0.0001) {
+          targetAngle = Math.atan2(sumX, sumZ);
+        } else {
+          // The two bearings are ~180 degrees apart on the turntable; no spin
+          // fronts both at once, so just face whichever is currently closer.
+          targetAngle = Math.abs(angA) < Math.abs(angB) ? angA : angB;
+        }
+      }
+
+      // Spin the shape (not the camera) so the averaged bearing lands at front.
+      dodecahedronGroup.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), -targetAngle);
+
+      // Zoom in along the camera's original, unchanged viewing axis.
+      camera.position.set(0, 0, distance);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    };
+
+    captureFn = function capturePNG() {
+      if (seqSelected.length !== 2) return;
+
+      // Re-derive the best-fit angle at capture time too, so the export is
+      // correct even if the user orbited away after selecting the pair.
+      orientFn(seqSelected[0], seqSelected[1]);
+
+      // Let the reset settle for a couple of frames before reading pixels.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          renderer.render(scene, camera);
+
+          const glCanvas = renderer.domElement;
+          const outW = glCanvas.clientWidth;
+          const outH = glCanvas.clientHeight;
+          const out = document.createElement('canvas');
+          out.width = outW;
+          out.height = outH;
+          const ctx = out.getContext('2d');
+          ctx.drawImage(glCanvas, 0, 0, outW, outH);
+
+          const posA = computeNodeScreenPos(seqSelected[0]);
+          const posB = computeNodeScreenPos(seqSelected[1]);
+
+          drawCaptureArrow(ctx, posA, posB);
+          drawCaptureLabel(ctx, posA, getNodeLabel(seqSelected[0]));
+          drawCaptureLabel(ctx, posB, getNodeLabel(seqSelected[1]));
+
+          out.toBlob((blob) => {
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `plane-${slugFor(seqSelected[0])}-to-${slugFor(seqSelected[1])}.png`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          }, 'image/png');
+        });
+      });
+    };
 
     // Resize
     window.addEventListener('resize', () => {
@@ -519,48 +909,32 @@
   });
 </script>
 
-<div class="dodeca-container">
+<div class="dodeca-container" class:sequence-pair-active={sequenceMode && seqSelected.length === 2}>
   <canvas bind:this={canvas}></canvas>
 
-  <!-- SVG Arrow Overlay -->
+  <!-- SVG Overlay: sequence-mode preview arrow only. User-drawn arrows are
+       real 3D "snake" meshes now (see snakesGroup in the script), so they
+       render inside the WebGL canvas itself, not here. -->
   <svg class="arrow-overlay">
     <defs>
-      <!-- Arrowhead marker -->
-      <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
-        <polygon points="0 0, 10 3, 0 6" fill="#ff6699" />
+      <marker id="sequence-arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+        <polygon points="0 0, 10 3, 0 6" fill="#ffcc44" />
       </marker>
     </defs>
 
-    <!-- Render arrows -->
-    {#each $arrowPaths as arrow (arrow.id)}
-      {#if arrow.positions && arrow.positions.length >= 2}
-        {@const pathData = arrow.positions.map((pos, i) =>
-          i === 0 ? `M ${pos.x} ${pos.y}` : `L ${pos.x} ${pos.y}`
-        ).join(' ')}
-        <path
-          d={pathData}
-          stroke="#ff6699"
-          stroke-width={arrow.isTemporary ? 3 : 2}
-          stroke-dasharray={arrow.isTemporary ? '5,5' : 'none'}
-          fill="none"
-          marker-end="url(#arrowhead)"
-          class="arrow-path"
-          class:temporary={arrow.isTemporary}
-          data-arrow-id={arrow.id}
-          on:contextmenu={(e) => !arrow.isTemporary && handleArrowRightClick(e, arrow.id)}
-        />
-        <!-- Draw circles at each waypoint -->
-        {#each arrow.positions as pos, i}
-          <circle
-            cx={pos.x}
-            cy={pos.y}
-            r="3"
-            fill="#ff6699"
-            class="arrow-waypoint"
-          />
-        {/each}
-      {/if}
-    {/each}
+    <!-- Sequence-mode preview arrow between the two selected planes -->
+    {#if sequenceMode && seqSelected.length === 2}
+      {@const posA = seqSelected[0].type === 'face' ? $faceLabels[seqSelected[0].index] : seqSelected[0].type === 'center' ? $centerLabel : $externalLabel}
+      {@const posB = seqSelected[1].type === 'face' ? $faceLabels[seqSelected[1].index] : seqSelected[1].type === 'center' ? $centerLabel : $externalLabel}
+      <path
+        d={`M ${posA?.x || 0} ${posA?.y || 0} L ${posB?.x || 0} ${posB?.y || 0}`}
+        stroke="#ffcc44"
+        stroke-width="3"
+        fill="none"
+        marker-end="url(#sequence-arrowhead)"
+        class="sequence-arrow-path"
+      />
+    {/if}
   </svg>
 
   <!-- Toggle Labels Button -->
@@ -568,9 +942,19 @@
     {labelsVisible ? 'Hide Labels' : 'Show Labels'}
   </button>
 
+  <!-- Language Toggle Button -->
+  <button class="toggle-labels-btn language-toggle-btn" on:click={() => englishLabels = !englishLabels}>
+    {englishLabels ? 'Greek Labels' : 'English Labels'}
+  </button>
+
   <!-- Arrow Mode Button -->
   <button class="arrow-mode-btn" class:active={arrowMode} on:click={toggleArrowMode}>
     {arrowMode ? 'Exit Arrow Mode' : 'Arrow Mode'}
+  </button>
+
+  <!-- Sequence Mode Button -->
+  <button class="sequence-mode-btn" class:active={sequenceMode} on:click={toggleSequenceMode}>
+    {sequenceMode ? 'Exit Sequence Mode' : 'Sequence Mode'}
   </button>
 
   <!-- Arrow Path Building Controls (show when building a path) -->
@@ -579,6 +963,25 @@
       <div class="arrow-path-info">Path: {currentPath.length} label{currentPath.length !== 1 ? 's' : ''}</div>
       <button class="finish-arrow-btn" on:click={finishArrow}>Finish Arrow</button>
       <button class="cancel-arrow-btn" on:click={cancelCurrentArrow}>Cancel</button>
+    </div>
+  {/if}
+
+  <!-- Sequence Mode Controls -->
+  {#if sequenceMode}
+    <div class="arrow-controls sequence-controls">
+      <div class="arrow-path-info">
+        {#if seqSelected.length === 0}
+          Click a plane to start a sequence pair.
+        {:else if seqSelected.length === 1}
+          {getNodeLabel(seqSelected[0])} — click an adjacent plane.
+        {:else}
+          {getNodeLabel(seqSelected[0])} → {getNodeLabel(seqSelected[1])}
+        {/if}
+      </div>
+      {#if seqSelected.length === 2}
+        <button class="finish-arrow-btn" on:click={() => captureFn && captureFn()}>Capture PNG</button>
+      {/if}
+      <button class="cancel-arrow-btn" on:click={() => { seqSelected = []; }}>Clear</button>
     </div>
   {/if}
 
@@ -616,8 +1019,10 @@
       <div
         class="label face-label"
         class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'face' && label.index === i)}
+        class:sequence-selected={sequenceMode && seqSelected.some(n => n.type === 'face' && n.index === i)}
         style="left: {($faceLabels[i]?.x || 0)}px; top: {($faceLabels[i]?.y || 0)}px;"
         on:click={() => {
+          if (sequenceMode) { handleSequenceLabelClick('face', i); return; }
           if (!handleLabelClick('face', i)) {
             openFaceDetails(i);
           }
@@ -625,7 +1030,7 @@
         role="button"
         tabindex="0"
       >
-        {name}
+        {englishLabels ? faceNamesEnglish[i] : name}
       </div>
     {/each}
 
@@ -633,8 +1038,10 @@
     <div
       class="label face-label center-label"
       class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'center')}
+      class:sequence-selected={sequenceMode && seqSelected.some(n => n.type === 'center')}
       style="left: {($centerLabel?.x || 0)}px; top: {($centerLabel?.y || 0)}px;"
       on:click={() => {
+        if (sequenceMode) { handleSequenceLabelClick('center', null); return; }
         if (!handleLabelClick('center', null)) {
           openCenterDetails();
         }
@@ -642,15 +1049,17 @@
       role="button"
       tabindex="0"
     >
-      0.υποσυνείδητον(Subconscious)
+      {englishLabels ? '0. Subconscious' : '0.υποσυνείδητον(Subconscious)'}
     </div>
 
     <!-- External label -->
     <div
       class="label external-label"
       class:arrow-source-selected={arrowMode && currentPath.some(label => label.type === 'external')}
+      class:sequence-selected={sequenceMode && seqSelected.some(n => n.type === 'external')}
       style="left: {($externalLabel?.x || 0)}px; top: {($externalLabel?.y || 0)}px;"
       on:click={() => {
+        if (sequenceMode) { handleSequenceLabelClick('external', null); return; }
         if (!handleLabelClick('external', null)) {
           openExternalDetails();
         }
@@ -658,7 +1067,7 @@
       role="button"
       tabindex="0"
     >
-      ∞.τὸ πᾶν(All)
+      {englishLabels ? '∞. All' : '∞.τὸ πᾶν(All)'}
     </div>
   {/if}
 
@@ -667,7 +1076,7 @@
     <div class="detail-panel-overlay" on:click={closeDetailPanel}></div>
     <div class="detail-panel">
       <div class="detail-header">
-        <h2>{selectedFace === 'center' ? '0.υποσυνείδητον(Subconscious)' : selectedFace === 'external' ? '∞.τὸ πᾶν(All)' : faceNames[selectedFace]}</h2>
+        <h2>{selectedFace === 'center' ? (englishLabels ? '0. Subconscious' : '0.υποσυνείδητον(Subconscious)') : selectedFace === 'external' ? (englishLabels ? '∞. All' : '∞.τὸ πᾶν(All)') : (englishLabels ? faceNamesEnglish[selectedFace] : faceNames[selectedFace])}</h2>
         <button class="close-btn" on:click={closeDetailPanel}>&times;</button>
       </div>
       <div class="detail-content">
@@ -1017,23 +1426,14 @@ canvas {
   z-index: 50;
 }
 
-.arrow-path {
-  cursor: context-menu;
-  pointer-events: stroke;
-  transition: stroke-width 0.2s ease, opacity 0.2s ease;
-  filter: drop-shadow(0 2px 4px rgba(255, 102, 153, 0.4));
-}
-
-.arrow-path:hover {
-  stroke-width: 3;
-  stroke: #ff88bb;
-  filter: drop-shadow(0 3px 8px rgba(255, 102, 153, 0.8));
+.language-toggle-btn {
+  left: 180px;
 }
 
 .arrow-mode-btn {
   position: fixed;
   top: 20px;
-  left: 180px;
+  left: 350px;
   z-index: 100;
   background: rgba(15, 15, 35, 0.9);
   border: 2px solid rgba(255, 102, 153, 0.6);
@@ -1072,6 +1472,70 @@ canvas {
   50% { transform: translate(-50%, -50%) scale(1.05); }
 }
 
+/* Sequence-mode styles */
+.sequence-mode-btn {
+  position: fixed;
+  top: 20px;
+  left: 540px;
+  z-index: 100;
+  background: rgba(15, 15, 35, 0.9);
+  border: 2px solid rgba(255, 204, 68, 0.6);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+.sequence-mode-btn:hover {
+  background: rgba(255, 204, 68, 0.6);
+  border-color: rgba(255, 204, 68, 1);
+  transform: translateY(-2px);
+}
+
+.sequence-mode-btn.active {
+  background: rgba(255, 204, 68, 0.9);
+  border-color: rgba(255, 204, 68, 1);
+  box-shadow: 0 0 20px rgba(255, 204, 68, 0.6);
+}
+
+.sequence-controls {
+  border-color: rgba(255, 204, 68, 0.8) !important;
+}
+
+.sequence-controls .arrow-path-info {
+  color: #ffcc44;
+}
+
+.sequence-controls .finish-arrow-btn {
+  background: rgba(255, 204, 68, 0.8);
+  border-color: rgba(255, 204, 68, 1);
+  color: #1a1400;
+}
+
+.sequence-controls .finish-arrow-btn:hover {
+  background: rgba(255, 204, 68, 1);
+}
+
+.sequence-selected {
+  border: 3px solid #ffcc44 !important;
+  box-shadow: 0 0 20px rgba(255, 204, 68, 0.8);
+}
+
+.sequence-arrow-path {
+  filter: drop-shadow(0 2px 4px rgba(255, 204, 68, 0.5));
+}
+
+/* When a pair is locked in, fade everything else for a clean book illustration */
+.dodeca-container.sequence-pair-active .label:not(.sequence-selected) {
+  opacity: 0.06;
+  pointer-events: none;
+}
+
 .context-menu {
   position: fixed;
   background: rgba(15, 15, 35, 0.95);
@@ -1103,11 +1567,6 @@ canvas {
   width: 100vw;
   height: 100vh;
   z-index: 1999;
-}
-
-.arrow-waypoint {
-  pointer-events: none;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 .arrow-controls {
